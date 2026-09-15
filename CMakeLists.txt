@@ -25,3 +25,29 @@ set_target_properties(torrnado_cli PROPERTIES
 
 target_link_libraries(torrnado_cli PRIVATE torrnado)
 
+include(CTest)
+
+if(BUILD_TESTING)
+  include(FetchContent)
+
+  FetchContent_Declare(
+    googletest
+    URL
+
+    "https://github.com/google/googletest/archive/063de7e9578f82b369302001269680b4b1553359.tar.gz"
+    URL_HASH
+
+    "SHA256=623fe05d283020f37a579a8985ba338091ac7229da62b5591ff40acdf05b95e2"
+  )
+
+  FetchContent_MakeAvailable(googletest)
+
+  add_executable(bencode_tests
+    tests/bencode_tests.cpp
+  )
+
+  target_link_libraries(bencode_tests PRIVATE torrnado GTest::gtest_main)
+
+  include(GoogleTest)
+  gtest_discover_tests(bencode_tests)
+endif()
