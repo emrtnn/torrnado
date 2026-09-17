@@ -10,9 +10,20 @@ experiments and progressive hints rather than implementing the project.
 
 ## Status
 
-Planning only. This repository brief does not claim that source code, a build
-system or any protocol feature already exists. Milestones below are targets,
-not implemented capabilities. CLI examples are proposed interfaces.
+Implementation is in progress:
+
+- A C++26 CMake/Ninja build produces a reusable `torrnado` library and a small
+  CLI executable.
+- GoogleTest is integrated with CTest; 32 current byte-string and integer tests
+  pass in the normal build.
+- The byte-string decoder returns borrowed byte views, reports consumed input
+  and distinguishes malformed, truncated and overflowing length prefixes.
+- The bounded integer decoder validates signs, canonical zero forms and the
+  full `std::int64_t` range; its `INT64_MIN` path has been checked with UBSan.
+- Lists, dictionaries, metainfo inspection and networking are not implemented.
+
+Milestones below describe both current work and future targets. CLI examples
+remain proposed interfaces unless explicitly listed above.
 
 ## Why this project
 
@@ -51,10 +62,10 @@ Implement the BitTorrent logic ourselves. Libraries may provide socket I/O,
 HTTP/TLS transport, hashing, test infrastructure and logging. Do not wrap
 libtorrent as the client core; use it as a reference and interoperability peer.
 
-Proposed tooling: C++23, CMake, Ninja, a supported GCC/Clang toolchain and a
-Nix development environment if useful. Verify actual standard-library support.
-Choose dependencies and build commands when the project is scaffolded; none
-are assumed to exist yet.
+Current tooling: C++26, CMake, Ninja, GCC, GoogleTest and CTest. A Nix
+development environment may be used for reproducible tools. Verify actual
+compiler and standard-library support before adopting individual C++26
+facilities.
 
 ## Learning workflow
 
@@ -77,7 +88,7 @@ feature with needing the fastest possible implementation of it.
 
 ### 0. Establish the development loop
 
-- [ ] A small executable and one automated test can be built and run.
+- [x] A small executable and automated tests can be built and run.
 - [ ] Understand compilation, linking and the selected build configuration.
 - [ ] Enable useful warnings and a separate AddressSanitizer/UBSan build where
   supported; use ThreadSanitizer later when shared-memory concurrency appears.
@@ -86,9 +97,13 @@ Keep setup minimal. It should support learning, not become the first large task.
 
 ### 1. Bencode and a metadata inspector
 
-- [ ] Decode byte strings, integers, lists and dictionaries incrementally in
-  learning complexity; the initial file parser need not be streaming.
-- [ ] Track consumed input and distinguish malformed/truncated input.
+- [x] Decode byte strings with a borrowed payload view and checked length.
+- [x] Decode bounded signed integers without undefined behavior at the tested
+  `std::int64_t` boundaries.
+- [ ] Decode lists and dictionaries incrementally; the initial file parser need
+  not be streaming.
+- [x] Track consumed input and distinguish malformed/truncated input for the
+  implemented scalar decoders.
 - [ ] Reject invalid encodings and enforce resource limits.
 - [ ] Inspect a single-file `.torrent` and identify its `info` byte range.
 - [ ] Compute its v1 info hash from the original encoded `info` bytes.

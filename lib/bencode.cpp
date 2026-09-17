@@ -1,6 +1,7 @@
 #include "bencode.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <expected>
 #include <limits>
 
@@ -69,20 +70,22 @@ decode_bencode_integer(ByteView input) {
   }
 
   std::size_t cursor = 1;
-  std::int64_t result = 0;
   bool negative = false;
-  auto limit = std::numeric_limits<std::int64_t>::max();
 
-  if (cursor < input.size() && input[cursor] == std::byte('-')) {
+  if (cursor < input.size() && input[cursor] == std::byte{'-'}) {
     negative = true;
     ++cursor;
-    limit = std::numeric_limits<std::int64_t>::min();
   }
 
   const std::size_t digit_start = cursor;
+  std::uint64_t magnitude = 0;
+
+  constexpr auto positive_limit =
+      static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max());
+  constexpr auto negative_limit = positive_limit + 1;
+  const auto limit = negative ? negative_limit : positive_limit;
 
   while (cursor < input.size()) {
-
     const auto character = std::to_integer<unsigned char>(input[cursor]);
 
     if (character == 'e') {
@@ -93,14 +96,13 @@ decode_bencode_integer(ByteView input) {
       return std::unexpected{ParseError::invalid};
     }
 
-    const auto digit = static_cast<std::size_t>(character - '0');
+    const auto digit = static_cast<std::uint64_t>(character - '0');
 
-    if (result > (limit - digit) / 10) {
+    if (magnitude > (limit - digit) / 10) {
       return std::unexpected{ParseError::integer_out_of_range};
     }
 
-    result = result * 10 + digit;
-
+    magnitude = magnitude * 10 + digit;
     ++cursor;
   }
 
@@ -115,16 +117,23 @@ decode_bencode_integer(ByteView input) {
     return std::unexpected{ParseError::invalid};
   }
 
-  if (digit_count > 1 && input[digit_start] == std::byte('0')) {
+  if (digit_count > 1 && input[digit_start] == std::byte{'0'}) {
     return std::unexpected{ParseError::invalid};
   }
 
-  if (negative) {
-    if (result == 0) {
-      return std::unexpected{ParseError::invalid};
-    }
-    result = -result;
+  if (negative && magnitude == 0) {
+    return std::unexpected{ParseError::invalid};
   }
 
-  return DecodedInteger{result, consumed};
+  std::int64_t value = 0;
+
+  if (!negative) {
+    value = static_cast<std::int64_t>(magnitude);
+  } else if (magnitude == negative_limit) {
+    value = std::numeric_limits<std::int64_t>::min();
+  } else {
+    value = -static_cast<std::int64_t>(magnitude);
+  }
+
+  return DecodedInteger{value, consumed};
 }
