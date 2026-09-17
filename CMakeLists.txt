@@ -2,6 +2,21 @@ cmake_minimum_required(VERSION 4.4.2)
 
 project(torrnado LANGUAGES CXX)
 
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build configuration" FORCE)
+endif()
+
+set_property(
+  CACHE CMAKE_BUILD_TYPE
+  PROPERTY STRINGS Debug Release RelWithDebInfo MinSizeRel
+)
+
+option(
+  TORRNADO_ENABLE_SANITIZERS
+  "Enable AddressSanitizer and UndefinedBehaviorSanitizer"
+  OFF
+)
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_library(torrnado
@@ -14,6 +29,26 @@ target_include_directories(torrnado
 )
 
 target_compile_features(torrnado PUBLIC cxx_std_26)
+
+if(TORRNADO_ENABLE_SANITIZERS)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(
+      torrnado
+      PUBLIC
+        -fsanitize=address,undefined
+        -fno-sanitize-recover=undefined
+        -fno-omit-frame-pointer
+    )
+
+    target_link_options(
+      torrnado
+      INTERFACE
+        -fsanitize=address,undefined
+    )
+  else()
+    message(FATAL_ERROR "Sanitizers require GCC or Clang")
+  endif()
+endif()
 
 add_executable(torrnado_cli
   app/main.cpp
