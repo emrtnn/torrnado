@@ -50,6 +50,14 @@ void expect_integer_success(std::string_view encoded,
   EXPECT_EQ(result->consumed, expected_consumed);
 }
 
+void expect_integer_error(std::string_view encoded,
+                          ParseError expected_error) {
+  const auto result = decode_bencode_integer(as_bytes(encoded));
+
+  ASSERT_FALSE(result.has_value());
+  EXPECT_EQ(result.error(), expected_error);
+}
+
 } // namespace
 
 TEST(DecodeBencodeString, DecodesByteString) {
@@ -115,3 +123,75 @@ TEST(DecodeBencodeInteger, DecodesNegativeInteger) {
 }
 
 TEST(DecodeBencodeInteger, DecodesZero) { expect_integer_success("i0e", 0, 3); }
+
+TEST(DecodeBencodeInteger, LeavesTrailingInputUnconsumed) {
+  expect_integer_success("i42eNEXT", 42, 4);
+}
+
+TEST(DecodeBencodeInteger, DecodesLargestRepresentableInteger) {
+  expect_integer_success("i9223372036854775807e",
+                         std::numeric_limits<std::int64_t>::max(), 21);
+}
+
+TEST(DecodeBencodeInteger, DecodesSmallestRepresentableInteger) {
+  expect_integer_success("i-9223372036854775808e",
+                         std::numeric_limits<std::int64_t>::min(), 22);
+}
+
+TEST(DecodeBencodeInteger, ReportsEmptyInputAsIncomplete) {
+  expect_integer_error("", ParseError::incomplete);
+}
+
+TEST(DecodeBencodeInteger, ReportsOnlyOpeningMarkerAsIncomplete) {
+  expect_integer_error("i", ParseError::incomplete);
+}
+
+TEST(DecodeBencodeInteger, ReportsSignWithoutDigitsOrTerminatorAsIncomplete) {
+  expect_integer_error("i-", ParseError::incomplete);
+}
+
+TEST(DecodeBencodeInteger, ReportsMissingTerminatorAsIncomplete) {
+  expect_integer_error("i42", ParseError::incomplete);
+}
+
+TEST(DecodeBencodeInteger, RejectsMissingOpeningMarker) {
+  expect_integer_error("42e", ParseError::invalid);
+}
+
+TEST(DecodeBencodeInteger, RejectsEmptyInteger) {
+  expect_integer_error("ie", ParseError::invalid);
+}
+
+TEST(DecodeBencodeInteger, RejectsSignWithoutDigits) {
+  expect_integer_error("i-e", ParseError::invalid);
+}
+
+TEST(DecodeBencodeInteger, RejectsNegativeZero) {
+  expect_integer_error("i-0e", ParseError::invalid);
+}
+
+TEST(DecodeBencodeInteger, RejectsPositiveLeadingZero) {
+  expect_integer_error("i03e", ParseError::invalid);
+}
+
+TEST(DecodeBencodeInteger, RejectsNegativeLeadingZero) {
+  expect_integer_error("i-03e", ParseError::invalid);
+}
+
+TEST(DecodeBencodeInteger, RejectsExplicitPlusSign) {
+  expect_integer_error("i+3e", ParseError::invalid);
+}
+
+TEST(DecodeBencodeInteger, RejectsNonDigitInValue) {
+  expect_integer_error("i4x2e", ParseError::invalid);
+}
+
+TEST(DecodeBencodeInteger, ReportsPositiveValueOutsideInt64Range) {
+  expect_integer_error("i9223372036854775808e",
+                       ParseError::integer_out_of_range);
+}
+
+TEST(DecodeBencodeInteger, ReportsNegativeValueOutsideInt64Range) {
+  expect_integer_error("i-9223372036854775809e",
+                       ParseError::integer_out_of_range);
+}
