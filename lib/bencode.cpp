@@ -57,3 +57,74 @@ decode_bencode_string(ByteView input) {
 
   return DecodedByteString{value, consumed};
 }
+
+std::expected<DecodedInteger, ParseError>
+decode_bencode_integer(ByteView input) {
+  if (input.empty()) {
+    return std::unexpected{ParseError::incomplete};
+  }
+
+  if (input.front() != std::byte{'i'}) {
+    return std::unexpected{ParseError::invalid};
+  }
+
+  std::size_t cursor = 1;
+  std::int64_t result = 0;
+  bool negative = false;
+  auto limit = std::numeric_limits<std::int64_t>::max();
+
+  if (cursor < input.size() && input[cursor] == std::byte('-')) {
+    negative = true;
+    ++cursor;
+    limit = std::numeric_limits<std::int64_t>::min();
+  }
+
+  const std::size_t digit_start = cursor;
+
+  while (cursor < input.size()) {
+
+    const auto character = std::to_integer<unsigned char>(input[cursor]);
+
+    if (character == 'e') {
+      break;
+    }
+
+    if (character < '0' || character > '9') {
+      return std::unexpected{ParseError::invalid};
+    }
+
+    const auto digit = static_cast<std::size_t>(character - '0');
+
+    if (result > (limit - digit) / 10) {
+      return std::unexpected{ParseError::integer_out_of_range};
+    }
+
+    result = result * 10 + digit;
+
+    ++cursor;
+  }
+
+  if (cursor == input.size()) {
+    return std::unexpected{ParseError::incomplete};
+  }
+
+  const std::size_t digit_count = cursor - digit_start;
+  const std::size_t consumed = cursor + 1;
+
+  if (digit_count == 0) {
+    return std::unexpected{ParseError::invalid};
+  }
+
+  if (digit_count > 1 && input[digit_start] == std::byte('0')) {
+    return std::unexpected{ParseError::invalid};
+  }
+
+  if (negative) {
+    if (result == 0) {
+      return std::unexpected{ParseError::invalid};
+    }
+    result = -result;
+  }
+
+  return DecodedInteger{result, consumed};
+}
